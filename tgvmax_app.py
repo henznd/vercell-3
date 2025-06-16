@@ -799,7 +799,37 @@ def main():
             )
             
             # Création d'onglets pour différentes vues
-            tab1, tab2, tab3 = st.tabs(["📊 Vue détaillée", "📈 Résumé par destination", "📈 Statistiques"])
+            tab2, tab1, tab3 = st.tabs(["📈 Résumé par destination", "📊 Vue détaillée", "📈 Statistiques"])
+            
+            with tab2:
+                # Résumé par destination
+                st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Résumé par destination</h3>', unsafe_allow_html=True)
+                if search_mode == SearchMode.ROUND_TRIP:
+                    destinations = df['Aller_Destination'].unique()
+                    for dest in sorted(destinations):
+                        dest_trips = df[df['Aller_Destination'] == dest]
+                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
+                            for _, trip in dest_trips.iterrows():
+                                st.markdown(
+                                    f"""<div class="trip-card">
+                                        <p><strong>Aller :</strong> {trip['Aller_Heure']} → {trip['Aller_Arrivee']} ({trip['Duree_Aller']})</p>
+                                        <p><strong>Retour :</strong> {trip['Retour_Heure']} → {trip['Retour_Arrivee']} ({trip['Duree_Retour']})</p>
+                                    </div>""",
+                                    unsafe_allow_html=True
+                                )
+                else:
+                    destinations = df['destination'].unique()
+                    for dest in sorted(destinations):
+                        dest_trips = df[df['destination'] == dest]
+                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
+                            for _, trip in dest_trips.iterrows():
+                                st.markdown(
+                                    f"""<div class="trip-card">
+                                        <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
+                                        <p class="small-text">Date : {trip['date']}</p>
+                                    </div>""",
+                                    unsafe_allow_html=True
+                                )
             
             with tab1:
                 # Vue détaillée
@@ -831,36 +861,6 @@ def main():
                             'duree': 'Durée'
                         }
                     )
-            
-            with tab2:
-                # Résumé par destination
-                st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Résumé par destination</h3>', unsafe_allow_html=True)
-                if search_mode == SearchMode.ROUND_TRIP:
-                    destinations = df['Aller_Destination'].unique()
-                    for dest in sorted(destinations):
-                        dest_trips = df[df['Aller_Destination'] == dest]
-                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
-                            for _, trip in dest_trips.iterrows():
-                                st.markdown(
-                                    f"""<div class="trip-card">
-                                        <p><strong>Aller :</strong> {trip['Aller_Heure']} → {trip['Aller_Arrivee']} ({trip['Duree_Aller']})</p>
-                                        <p><strong>Retour :</strong> {trip['Retour_Heure']} → {trip['Retour_Arrivee']} ({trip['Duree_Retour']})</p>
-                                    </div>""",
-                                    unsafe_allow_html=True
-                                )
-                else:
-                    destinations = df['destination'].unique()
-                    for dest in sorted(destinations):
-                        dest_trips = df[df['destination'] == dest]
-                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
-                            for _, trip in dest_trips.iterrows():
-                                st.markdown(
-                                    f"""<div class="trip-card">
-                                        <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
-                                        <p class="small-text">Date : {trip['date']}</p>
-                                    </div>""",
-                                    unsafe_allow_html=True
-                                )
             
             with tab3:
                 st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Statistiques des trajets</h3>', unsafe_allow_html=True)
