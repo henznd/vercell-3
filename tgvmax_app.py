@@ -632,7 +632,7 @@ def main():
                     font-size: 1.1em;
                     color: #1d1d1f;
                 ">
-                    🗓️ Réservations ouvertes jusqu'au {latest_date.strftime("%d/%m/%Y")}
+                    🎫 Les billets TGV Max sont disponibles jusqu'au {latest_date.strftime("%d/%m/%Y")}
                 </span>
             </div>
         </div>
