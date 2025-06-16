@@ -18,6 +18,7 @@ from utils import (
     get_tgvmax_trains, filter_trains_by_time, format_single_trips,
     calculate_duration, handle_error
 )
+import re
 
 # Configuration de la page
 st.set_page_config(
@@ -532,14 +533,17 @@ def create_route_map(df: pd.DataFrame, search_mode: SearchMode) -> folium.Map:
     
     return m
 
-def convert_duration_to_timedelta(duration_str: str) -> pd.Timedelta:
-    """Convertit une chaîne de durée (ex: '2h15') en Timedelta."""
-    if 'h' in duration_str:
-        parts = duration_str.split('h')
-        hours = int(parts[0])
-        minutes = int(parts[1]) if parts[1] else 0
-        return pd.Timedelta(hours=hours, minutes=minutes)
-    return pd.Timedelta(minutes=int(duration_str))
+def extract_and_average_durations(series):
+    all_minutes = []
+    for val in series:
+        matches = re.findall(r'(\d+)h(\d+)', str(val))
+        for h, m in matches:
+            all_minutes.append(int(h) * 60 + int(m))
+    if all_minutes:
+        avg = sum(all_minutes) / len(all_minutes)
+        return f"{int(avg // 60)}h{int(avg % 60):02d}"
+    else:
+        return "N/A"
 
 def test_june_dates():
     """Fonction temporaire pour tester les dates de juin."""
@@ -844,7 +848,7 @@ def main():
                         st.metric("Durée moyenne aller", avg_duration_aller)
                         st.metric("Durée moyenne retour", avg_duration_retour)
                     else:
-                        avg_duration = df['duree'].mean() if not df.empty else "N/A"
+                        avg_duration = extract_and_average_durations(df['duree']) if not df.empty else "N/A"
                         st.metric("Durée moyenne", avg_duration)
 
                 with col2:
