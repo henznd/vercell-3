@@ -289,20 +289,14 @@ st.markdown("""
     }
 
     @media (max-width: 600px) {
-      .main-header { font-size: 28px !important; }
-      .sub-header { font-size: 16px !important; }
-      .trip-card { padding: 0.7rem !important; }
-      .signature { font-size: 0.7rem !important; }
-      .stButton>button { font-size: 14px !important; padding: 10px 12px !important; }
-      .dataframe th, .dataframe td { font-size: 0.7rem !important; padding: 6px !important; }
+      .main-header { font-size: 24px !important; }
+      .sub-header { font-size: 14px !important; }
+      .trip-card { padding: 0.5rem !important; }
+      .stButton>button { font-size: 13px !important; padding: 8px 8px !important; }
+      .dataframe th, .dataframe td { font-size: 0.7rem !important; padding: 4px !important; }
       .stTabs [data-baseweb="tab-list"] { flex-direction: column !important; }
-      .info-box { padding: 0.7rem !important; font-size: 0.9rem !important; }
-      .destinations-chip { font-size: 0.7rem !important; padding: 4px 8px !important; }
-      .stSidebar { width: 100vw !important; min-width: 0 !important; }
-      .stApp { padding: 0 !important; }
-      .streamlit-expanderHeader { font-size: 0.9rem !important; }
-      /* Désactive les animations lourdes */
-      .trip-card, .main-header, .sub-header, .info-box { animation: none !important; }
+      .info-box { padding: 0.5rem !important; font-size: 0.8rem !important; }
+      .destinations-chip { font-size: 0.6rem !important; padding: 3px 6px !important; }
     }
     </style>
     
