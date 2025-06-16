@@ -42,17 +42,22 @@ st.markdown("""
     /* Styles globaux */
     .stApp {
         background-color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
     /* En-tête */
     .main-header {
         font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-        font-weight: 700;
+        font-weight: 800;
         color: #1d1d1f;
-        font-size: 48px;
+        font-size: 52px;
         text-align: center;
         margin-bottom: 0;
         padding: 2rem 0 0.5rem;
+        background: linear-gradient(45deg, #0071e3, #42a1ec);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: fadeIn 1s ease-in;
     }
     
     .sub-header {
@@ -62,17 +67,19 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
         font-weight: 400;
+        animation: slideUp 0.8s ease-out;
     }
     
     /* Sidebar */
     .css-1d391kg {
         background-color: #f5f5f7;
         border-right: none;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
     }
     
     /* Boutons */
     .stButton>button {
-        background-color: #0071e3;
+        background: linear-gradient(45deg, #0071e3, #42a1ec);
         color: white;
         border: none;
         border-radius: 980px;
@@ -80,11 +87,12 @@ st.markdown("""
         font-size: 16px;
         font-weight: 500;
         transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
     }
     
     .stButton>button:hover {
-        background-color: #0077ED;
-        transform: scale(1.02);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
     }
     
     /* Cards */
@@ -93,8 +101,15 @@ st.markdown("""
         border-radius: 18px;
         padding: 1.5rem;
         margin-bottom: 1rem;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
         border: 1px solid #e5e5e5;
+        transition: all 0.3s ease;
+        animation: slideUp 0.5s ease-out;
+    }
+    
+    .trip-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
     }
     
     /* Signature */
@@ -103,7 +118,7 @@ st.markdown("""
         right: 1rem;
         bottom: 1rem;
         padding: 0.75rem 1.5rem;
-        background-color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.95);
         border-radius: 980px;
         font-size: 0.9rem;
         font-weight: 500;
@@ -112,15 +127,24 @@ st.markdown("""
         -webkit-backdrop-filter: blur(10px);
         border: 1px solid #e5e5e5;
         z-index: 1000;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .signature:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
     }
     
     /* Info boxes */
     .info-box {
-        background-color: #f5f5f7;
+        background: linear-gradient(45deg, #f5f5f7, #ffffff);
         border-radius: 14px;
-        padding: 1rem;
+        padding: 1.5rem;
         margin: 1rem 0;
-        border: none;
+        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+        animation: fadeIn 0.5s ease-out;
     }
     
     /* DataFrames */
@@ -128,29 +152,39 @@ st.markdown("""
         border: none !important;
         border-radius: 12px !important;
         overflow: hidden !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04) !important;
     }
     
     .dataframe th {
-        background-color: #f5f5f7 !important;
+        background: linear-gradient(45deg, #f5f5f7, #ffffff) !important;
         color: #1d1d1f !important;
         font-weight: 600 !important;
+        padding: 12px !important;
     }
     
     .dataframe td {
         font-size: 0.9rem !important;
+        padding: 12px !important;
+        transition: all 0.2s ease;
+    }
+    
+    .dataframe tr:hover td {
+        background-color: #f8f8f8 !important;
     }
     
     /* Radio buttons */
     .st-cc {
         border-radius: 980px !important;
         padding: 2px !important;
+        background: #f5f5f7 !important;
     }
     
     /* Expander */
     .streamlit-expanderHeader {
         border-radius: 12px !important;
-        background-color: #f5f5f7 !important;
-        border: none !important;
+        background: linear-gradient(45deg, #f5f5f7, #ffffff) !important;
+        border: 1px solid #e5e5e5 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
     }
     
     /* Small text */
@@ -163,43 +197,94 @@ st.markdown("""
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
+        padding: 4px;
+        background: #f5f5f7;
+        border-radius: 12px;
     }
     
     .stTabs [data-baseweb="tab"] {
         border-radius: 12px;
         padding: 8px 16px;
-        background-color: #f5f5f7;
+        background-color: transparent;
+        transition: all 0.3s ease;
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #0071e3;
-        color: white;
+        background: linear-gradient(45deg, #0071e3, #42a1ec);
+        color: #1d1d1f;
+        box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
     }
 
     /* Destinations disponibles */
     .destinations-chip {
         display: inline-block;
-        background-color: #f5f5f7;
+        background: linear-gradient(45deg, #f5f5f7, #ffffff);
         border-radius: 980px;
-        padding: 4px 12px;
-        margin: 2px 4px;
+        padding: 6px 14px;
+        margin: 4px;
         font-size: 0.9rem;
         color: #1d1d1f;
+        border: 1px solid #e5e5e5;
+        transition: all 0.3s ease;
+    }
+
+    .destinations-chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
     .destinations-container {
-        background-color: #fff;
+        background: linear-gradient(45deg, #ffffff, #f8f8f8);
         border-radius: 14px;
-        padding: 0.75rem;
+        padding: 1rem;
         margin: 0.5rem 0;
         border: 1px solid #e5e5e5;
         font-size: 0.9rem;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
     }
 
     .destinations-title {
-        color: #86868b;
-        font-size: 0.9rem;
-        margin-bottom: 0.5rem;
+        color: #1d1d1f;
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+        font-weight: 600;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Loading spinner */
+    .stSpinner > div {
+        border: 3px solid #f5f5f7;
+        border-top: 3px solid #0071e3;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Progress bar */
+    .stProgress > div > div {
+        background: linear-gradient(45deg, #0071e3, #42a1ec);
     }
     </style>
     
@@ -684,7 +769,7 @@ def main():
             )
             
             # Création d'onglets pour différentes vues
-            tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Vue détaillée", "📈 Résumé par destination", "📈 Statistiques", "⭐ Favoris", "🗺️ Carte"])
+            tab1, tab2, tab3 = st.tabs(["📊 Vue détaillée", "📈 Résumé par destination", "📈 Statistiques"])
             
             with tab1:
                 # Vue détaillée
@@ -793,53 +878,6 @@ def main():
                     else:
                         hour_dist = pd.to_datetime(df['heure_depart']).dt.hour.value_counts().sort_index()
                     st.bar_chart(hour_dist)
-
-            with tab4:
-                st.markdown("### ⭐ Gérer mes favoris")
-                if search_mode == SearchMode.ROUND_TRIP:
-                    for _, row in df.iterrows():
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.write(f"🚅 {row['Aller_Origine']} → {row['Aller_Destination']}")
-                        with col2:
-                            fav = {
-                                'origin': row['Aller_Origine'],
-                                'destination': row['Aller_Destination']
-                            }
-                            if fav not in st.session_state.favorites:
-                                if st.button("⭐", key=f"add_{row['Aller_Origine']}_{row['Aller_Destination']}"):
-                                    st.session_state.favorites.append(fav)
-                                    st.rerun()
-                else:
-                    for _, row in df.iterrows():
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.write(f"🚅 {row['origine']} → {row['destination']}")
-                        with col2:
-                            fav = {
-                                'origin': row['origine'],
-                                'destination': row['destination']
-                            }
-                            if fav not in st.session_state.favorites:
-                                if st.button("⭐", key=f"add_{row['origine']}_{row['destination']}"):
-                                    st.session_state.favorites.append(fav)
-                                    st.rerun()
-
-            with tab5:
-                st.markdown("### 🗺️ Visualisation des trajets")
-                if not df.empty:
-                    m = create_route_map(df, search_mode)
-                    folium_static(m)
-                    
-                    st.markdown("""
-                    <div class="info-box">
-                        <h4>📍 Légende</h4>
-                        <p>• 🔵 Gares de départ</p>
-                        <p>• 🟢 Gares d'arrivée</p>
-                        <p>• Les lignes bleues représentent les trajets</p>
-                        <p>• Cliquez sur les marqueurs pour plus d'informations</p>
-                    </div>
-                    """, unsafe_allow_html=True)
         else:
             # Trouver la date la plus éloignée disponible dans l'API
             future_date = MAX_DATE
