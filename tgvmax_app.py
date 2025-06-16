@@ -544,17 +544,40 @@ def create_route_map(df: pd.DataFrame, search_mode: SearchMode) -> folium.Map:
     
     return m
 
-def extract_and_average_durations(series):
-    all_minutes = []
-    for val in series:
-        matches = re.findall(r'(\d+)h(\d+)', str(val))
-        for h, m in matches:
-            all_minutes.append(int(h) * 60 + int(m))
-    if all_minutes:
-        avg = sum(all_minutes) / len(all_minutes)
-        return f"{int(avg // 60)}h{int(avg % 60):02d}"
-    else:
+def convert_duration_to_minutes(duration_str: str) -> int:
+    """Convertit une durée au format '1h30' en minutes."""
+    if not isinstance(duration_str, str):
+        return 0
+    try:
+        hours = 0
+        minutes = 0
+        if 'h' in duration_str:
+            parts = duration_str.split('h')
+            hours = int(parts[0])
+            minutes = int(parts[1]) if parts[1] else 0
+        else:
+            minutes = int(duration_str)
+        return hours * 60 + minutes
+    except:
+        return 0
+
+def format_minutes_to_duration(minutes: int) -> str:
+    """Convertit un nombre de minutes en format '1h30'."""
+    if not minutes:
         return "N/A"
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours}h{mins:02d}"
+
+def calculate_average_duration(durations: pd.Series) -> str:
+    """Calcule la moyenne d'une série de durées."""
+    if durations.empty:
+        return "N/A"
+    minutes_list = [convert_duration_to_minutes(d) for d in durations]
+    if not minutes_list:
+        return "N/A"
+    avg_minutes = sum(minutes_list) / len(minutes_list)
+    return format_minutes_to_duration(int(avg_minutes))
 
 def test_june_dates():
     """Fonction temporaire pour tester les dates de juin."""
@@ -863,12 +886,12 @@ def main():
                 
                 with col1:
                     if search_mode == SearchMode.ROUND_TRIP:
-                        avg_duration_aller = df['Duree_Aller'].mean() if not df.empty else "N/A"
-                        avg_duration_retour = df['Duree_Retour'].mean() if not df.empty else "N/A"
+                        avg_duration_aller = calculate_average_duration(df['Duree_Aller'])
+                        avg_duration_retour = calculate_average_duration(df['Duree_Retour'])
                         st.metric("Durée moyenne aller", avg_duration_aller)
                         st.metric("Durée moyenne retour", avg_duration_retour)
                     else:
-                        avg_duration = extract_and_average_durations(df['duree']) if not df.empty else "N/A"
+                        avg_duration = calculate_average_duration(df['duree'])
                         st.metric("Durée moyenne", avg_duration)
 
                 with col2:
