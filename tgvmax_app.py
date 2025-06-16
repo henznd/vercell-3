@@ -558,6 +558,15 @@ def test_june_dates():
             continue
     return june_dates
 
+def convert_duration_to_timedelta(duration_str: str) -> pd.Timedelta:
+    """Convertit une chaîne de durée (ex: '2h15') en Timedelta."""
+    if 'h' in duration_str:
+        parts = duration_str.split('h')
+        hours = int(parts[0])
+        minutes = int(parts[1]) if parts[1] else 0
+        return pd.Timedelta(hours=hours, minutes=minutes)
+    return pd.Timedelta(minutes=int(duration_str))
+
 def main():
     init_session_state()
     
