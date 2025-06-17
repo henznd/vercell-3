@@ -333,10 +333,29 @@ def find_trips(mode: SearchMode,
                 all_trains.extend(trains)
                 progress_bar.progress((i + 1) / date_range_days)
             progress_bar.empty()
-        
         df = format_single_trips(all_trains)
+        if not df.empty:
+            # S'assurer que la colonne 'date' est bien de type datetime pour le tri
+            df['date_dt'] = pd.to_datetime(df['date'], errors='coerce')
+            df = df.sort_values(by=["date_dt", "heure_depart"]).reset_index(drop=True)
+            df['date'] = df['date_dt'].dt.strftime('%d/%m/%Y')
+            del df['date_dt']
         if not df.empty and depart_start and depart_end:
-            return filter_trains_by_time(df, depart_start, depart_end, is_round_trip=False)
+            df = filter_trains_by_time(df, depart_start, depart_end, is_round_trip=False)
+        # Affichage groupé par date
+        if mode == SearchMode.DATE_RANGE and not df.empty:
+            for date_str in df['date'].unique():
+                day_trips = df[df['date'] == date_str]
+                with st.expander(f"🗓️ {date_str}", expanded=False):
+                    for _, trip in day_trips.iterrows():
+                        st.markdown(
+                            f"""<div class="trip-card">
+                                <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
+                                <p class="small-text">Date : {trip['date']}</p>
+                            </div>""",
+                            unsafe_allow_html=True
+                        )
+            return pd.DataFrame()
         return df
     
     elif mode == SearchMode.SINGLE:
