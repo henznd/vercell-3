@@ -358,7 +358,7 @@ def find_trips(mode: SearchMode,
                         )
             return pd.DataFrame()
         return df
-// ... existing code ...
+
     
     elif mode == SearchMode.SINGLE:
         with st.spinner('Recherche des trains...'):
