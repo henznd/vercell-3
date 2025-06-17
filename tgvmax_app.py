@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, time
 import requests
-from typing import List, Dict
+from typing import List, Dict, Union
 from enum import Enum
 import folium
 from folium import plugins
@@ -315,7 +315,7 @@ def find_trips(mode: SearchMode,
                depart_end: time = None,
                return_start: time = None,
                return_end: time = None,
-               date_range_days: int = DEFAULT_RANGE_DAYS) -> pd.DataFrame:
+               date_range_days: int = DEFAULT_RANGE_DAYS) -> Union[pd.DataFrame, dict, List[dict]]:
     """
     Trouve les trajets disponibles en TGV Max selon le mode choisi.
     """
@@ -367,63 +367,30 @@ def find_trips(mode: SearchMode,
                 depart_date.strftime("%Y-%m-%d"),
                 origin=origin_city
             )
-            
-        if outbound_trains:
-            destinations = sorted(set(t['destination'] for t in outbound_trains))
-            st.markdown(
-                f"""<div class="destinations-container">
-                    <div class="destinations-title">Destinations possibles en aller-retour :</div>
-                    {''.join(f'<span class="destinations-chip">{dest}</span>' for dest in destinations)}
-                </div>""",
-                unsafe_allow_html=True
-            )
-        
-        with st.spinner('Recherche des trains retour...'):
-            inbound_trains = get_tgvmax_trains(return_date.strftime("%Y-%m-%d"))
-        
-        if not outbound_trains or not inbound_trains:
-            return pd.DataFrame()
-        
-        round_trips = []
-        for outbound in outbound_trains:
-            destination = outbound['destination']
-            origin = outbound['origine']
-            
-            matching_returns = [
-                train for train in inbound_trains
-                if train['origine'] == destination and train['destination'] == origin
-            ]
-            
-            for return_train in matching_returns:
-                round_trips.append({
-                    'Aller_Origine': outbound['origine'],
-                    'Aller_Destination': outbound['destination'],
-                    'Aller_Date': outbound['date'],
-                    'Aller_Heure': outbound['heure_depart'],
-                    'Aller_Arrivee': outbound['heure_arrivee'],
-                    'Retour_Origine': return_train['origine'],
-                    'Retour_Destination': return_train['destination'],
-                    'Retour_Date': return_train['date'],
-                    'Retour_Heure': return_train['heure_depart'],
-                    'Retour_Arrivee': return_train['heure_arrivee']
-                })
-        
-        if round_trips:
-            df = pd.DataFrame(round_trips)
-            for prefix in ['Aller_', 'Retour_']:
-                df[f'{prefix}Date'] = pd.to_datetime(df[f'{prefix}Date']).dt.strftime('%d/%m/%Y')
-            
-            df = df.sort_values('Aller_Heure')
-            
-            if depart_start and depart_end:
-                df = filter_trains_by_time(df, depart_start, depart_end, return_start, return_end)
-            
-            if not df.empty:
-                df['Duree_Aller'] = df.apply(lambda x: calculate_duration(x['Aller_Heure'], x['Aller_Arrivee']), axis=1)
-                df['Duree_Retour'] = df.apply(lambda x: calculate_duration(x['Retour_Heure'], x['Retour_Arrivee']), axis=1)
-            
-            return df
-        return pd.DataFrame()
+        # On récupère toutes les destinations atteignables à l'aller
+        destinations_aller = sorted(set(t['destination'] for t in outbound_trains))
+        all_results = []
+        for dest in destinations_aller:
+            try:
+                with st.spinner(f'Recherche des trains retour pour {dest}...'):
+                    inbound_trains = get_tgvmax_trains(
+                        return_date.strftime("%Y-%m-%d"),
+                        origin=dest,
+                        destination=origin_city
+                    )
+            except Exception as e:
+                # On ignore l'erreur API pour cette destination
+                inbound_trains = []
+            df_aller = format_single_trips([t for t in outbound_trains if t['destination'] == dest])
+            df_retour = format_single_trips(inbound_trains)
+            # Filtrage horaire
+            if not df_aller.empty and depart_start and depart_end:
+                df_aller = filter_trains_by_time(df_aller, depart_start, depart_end, is_round_trip=False)
+            if not df_retour.empty and return_start and return_end:
+                df_retour = filter_trains_by_time(df_retour, return_start, return_end, is_round_trip=False)
+            if not df_aller.empty and not df_retour.empty:
+                all_results.append({"destination": dest, "aller": df_aller, "retour": df_retour})
+        return all_results
 
 @st.cache_data(ttl=3600)  # Cache pour 1 heure
 def find_latest_train_date():
@@ -764,7 +731,7 @@ def main():
 
     # Affichage des résultats
     if search_button:
-        df = find_trips(
+        result = find_trips(
             mode=search_mode,
             depart_date=depart_date,
             return_date=return_date,
@@ -776,165 +743,196 @@ def main():
             return_end=return_end,
             date_range_days=date_range_days
         )
-        
-        if not df.empty:
-            # Appliquer les filtres avancés
-            if search_mode == SearchMode.ROUND_TRIP:
-                # Conversion des durées en timedelta
-                df['Duree_Aller_Timedelta'] = df['Duree_Aller'].apply(convert_duration_to_timedelta)
-                df['Duree_Retour_Timedelta'] = df['Duree_Retour'].apply(convert_duration_to_timedelta)
-                df['Duree_Totale'] = df['Duree_Aller_Timedelta'] + df['Duree_Retour_Timedelta']
-                
-                # Filtre par durée
-                df = df[df['Duree_Totale'] <= pd.Timedelta(hours=max_duration)]
-                
-                # Tri des résultats
-                if sort_by == "Heure de départ":
-                    df = df.sort_values('Aller_Heure', ascending=(sort_order == "Croissant"))
-                elif sort_by == "Durée":
-                    df = df.sort_values('Duree_Totale', ascending=(sort_order == "Croissant"))
-                else:  # Destination
-                    df = df.sort_values('Aller_Destination', ascending=(sort_order == "Croissant"))
+        if search_mode == SearchMode.ROUND_TRIP:
+            all_results = result
+            if not all_results:
+                st.error("Aucun aller-retour disponible pour ces dates.")
             else:
-                # Conversion des durées en timedelta
-                df['Duree_Timedelta'] = df['duree'].apply(convert_duration_to_timedelta)
-                
-                # Filtre par durée
-                df = df[df['Duree_Timedelta'] <= pd.Timedelta(hours=max_duration)]
-                
-                # Tri des résultats
-                if sort_by == "Heure de départ":
-                    df = df.sort_values('heure_depart', ascending=(sort_order == "Croissant"))
-                elif sort_by == "Durée":
-                    df = df.sort_values('Duree_Timedelta', ascending=(sort_order == "Croissant"))
-                else:  # Destination
-                    df = df.sort_values('destination', ascending=(sort_order == "Croissant"))
-            
-            st.markdown(
-                f'<div style="text-align: center; padding: 2rem;"><h2 style="color: #1d1d1f; font-size: 32px;">✨ {len(df)} trajet{"s" if len(df) > 1 else ""} trouvé{"s" if len(df) > 1 else ""} !</h2></div>',
-                unsafe_allow_html=True
-            )
-            
-            # Création d'onglets pour différentes vues
-            tab2, tab1, tab3 = st.tabs(["📈 Résumé par destination", "📊 Vue détaillée", "📈 Statistiques"])
-            
-            with tab2:
-                # Résumé par destination
-                st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Résumé par destination</h3>', unsafe_allow_html=True)
-                if search_mode == SearchMode.ROUND_TRIP:
-                    destinations = df['Aller_Destination'].unique()
-                    for dest in sorted(destinations):
-                        dest_trips = df[df['Aller_Destination'] == dest]
-                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
-                            for _, trip in dest_trips.iterrows():
-                                st.markdown(
-                                    f"""<div class="trip-card">
-                                        <p><strong>Aller :</strong> {trip['Aller_Heure']} → {trip['Aller_Arrivee']} ({trip['Duree_Aller']})</p>
-                                        <p><strong>Retour :</strong> {trip['Retour_Heure']} → {trip['Retour_Arrivee']} ({trip['Duree_Retour']})</p>
-                                    </div>""",
-                                    unsafe_allow_html=True
-                                )
-                else:
-                    destinations = df['destination'].unique()
-                    for dest in sorted(destinations):
-                        dest_trips = df[df['destination'] == dest]
-                        with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
-                            for _, trip in dest_trips.iterrows():
-                                st.markdown(
-                                    f"""<div class="trip-card">
-                                        <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
-                                        <p class="small-text">Date : {trip['date']}</p>
-                                    </div>""",
-                                    unsafe_allow_html=True
-                                )
-            
-            with tab1:
-                # Vue détaillée
-                if search_mode == SearchMode.ROUND_TRIP:
-                    st.dataframe(
-                        df[['Aller_Destination', 'Aller_Heure', 'Aller_Arrivee', 'Duree_Aller',
-                            'Retour_Heure', 'Retour_Arrivee', 'Duree_Retour']],
-                        hide_index=True,
-                        column_config={
-                            'Aller_Destination': 'Destination',
-                            'Aller_Heure': 'Départ Aller',
-                            'Aller_Arrivee': 'Arrivée Aller',
-                            'Duree_Aller': 'Durée Aller',
-                            'Retour_Heure': 'Départ Retour',
-                            'Retour_Arrivee': 'Arrivée Retour',
-                            'Duree_Retour': 'Durée Retour'
-                        }
-                    )
-                else:
-                    st.dataframe(
-                        df,
-                        hide_index=True,
-                        column_config={
-                            'origine': 'Départ',
-                            'destination': 'Arrivée',
-                            'date': 'Date',
-                            'heure_depart': 'Heure départ',
-                            'heure_arrivee': 'Heure arrivée',
-                            'duree': 'Durée'
-                        }
-                    )
-            
-            with tab3:
-                st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Statistiques des trajets</h3>', unsafe_allow_html=True)
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if search_mode == SearchMode.ROUND_TRIP:
-                        avg_duration_aller = calculate_average_duration(df['Duree_Aller'])
-                        avg_duration_retour = calculate_average_duration(df['Duree_Retour'])
-                        st.metric("Durée moyenne aller", avg_duration_aller)
-                        st.metric("Durée moyenne retour", avg_duration_retour)
-                    else:
-                        avg_duration = calculate_average_duration(df['duree'])
-                        st.metric("Durée moyenne", avg_duration)
-
-                with col2:
-                    if search_mode == SearchMode.ROUND_TRIP:
-                        n_destinations = len(df['Aller_Destination'].unique()) if not df.empty else 0
-                    else:
-                        n_destinations = len(df['destination'].unique()) if not df.empty else 0
-                    st.metric("Nombre de destinations", n_destinations)
-                    
-                    earliest_departure = df['Aller_Heure'].min() if search_mode == SearchMode.ROUND_TRIP else df['heure_depart'].min() if not df.empty else "N/A"
-                    latest_departure = df['Aller_Heure'].max() if search_mode == SearchMode.ROUND_TRIP else df['heure_depart'].max() if not df.empty else "N/A"
-                    st.metric("Premier départ", earliest_departure)
-                    st.metric("Dernier départ", latest_departure)
-
-                with col3:
-                    if search_mode == SearchMode.ROUND_TRIP:
-                        trips_per_dest = df.groupby('Aller_Destination').size()
-                    else:
-                        trips_per_dest = df.groupby('destination').size() if not df.empty else pd.Series()
-                    
-                    if not trips_per_dest.empty:
-                        most_frequent_dest = trips_per_dest.idxmax()
-                        n_trips_most_frequent = trips_per_dest.max()
-                        st.metric("Destination la plus desservie", f"{most_frequent_dest} ({n_trips_most_frequent} trajets)")
-
-                # Graphique des trajets par heure si pertinent
-                if not df.empty:
-                    st.markdown("### 📈 Répartition des trajets par heure")
-                    if search_mode == SearchMode.ROUND_TRIP:
-                        hour_dist = pd.to_datetime(df['Aller_Heure']).dt.hour.value_counts().sort_index()
-                    else:
-                        hour_dist = pd.to_datetime(df['heure_depart']).dt.hour.value_counts().sort_index()
-                    st.bar_chart(hour_dist)
+                st.markdown(
+                    f'<div style="text-align: center; padding: 2rem;"><h2 style="color: #1d1d1f; font-size: 32px;">✨ {len(all_results)} destination(s) avec aller-retour disponible !</h2></div>',
+                    unsafe_allow_html=True
+                )
+                for res in all_results:
+                    dest = res["destination"]
+                    df_aller = res["aller"]
+                    df_retour = res["retour"]
+                    with st.expander(f"🚄 {dest}"):
+                        st.markdown('<h4>Allers possibles</h4>', unsafe_allow_html=True)
+                        for _, trip in df_aller.iterrows():
+                            st.markdown(
+                                f"""<div class="trip-card">
+                                    <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
+                                    <p class="small-text">Date : {trip['date']}</p>
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
+                        st.markdown('<h4>Retours possibles</h4>', unsafe_allow_html=True)
+                        for _, trip in df_retour.iterrows():
+                            st.markdown(
+                                f"""<div class="trip-card">
+                                    <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
+                                    <p class="small-text">Date : {trip['date']}</p>
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
         else:
-            # Trouver la date la plus éloignée disponible dans l'API
-            future_date = MAX_DATE
-            st.markdown(
-                f'''<div class="info-box" style="text-align: center; padding: 2rem;">
-                    <h3 style="color: #1d1d1f;">Aucun trajet trouvé pour ces critères</h3>
-                    <p class="small-text">Les données sont disponibles jusqu'au {future_date.strftime("%d/%m/%Y")}</p>
-                </div>''',
-                unsafe_allow_html=True
-            )
+            df = result
+            if not df.empty:
+                # Appliquer les filtres avancés
+                if search_mode == SearchMode.ROUND_TRIP:
+                    # Conversion des durées en timedelta
+                    df['Duree_Timedelta'] = df['duree'].apply(convert_duration_to_timedelta)
+                    
+                    # Filtre par durée
+                    df = df[df['Duree_Timedelta'] <= pd.Timedelta(hours=max_duration)]
+                    
+                    # Tri des résultats
+                    if sort_by == "Heure de départ":
+                        df = df.sort_values('heure_depart', ascending=(sort_order == "Croissant"))
+                    elif sort_by == "Durée":
+                        df = df.sort_values('Duree_Timedelta', ascending=(sort_order == "Croissant"))
+                    else:  # Destination
+                        df = df.sort_values('destination', ascending=(sort_order == "Croissant"))
+                else:
+                    # Conversion des durées en timedelta
+                    df['Duree_Timedelta'] = df['duree'].apply(convert_duration_to_timedelta)
+                    
+                    # Filtre par durée
+                    df = df[df['Duree_Timedelta'] <= pd.Timedelta(hours=max_duration)]
+                    
+                    # Tri des résultats
+                    if sort_by == "Heure de départ":
+                        df = df.sort_values('heure_depart', ascending=(sort_order == "Croissant"))
+                    elif sort_by == "Durée":
+                        df = df.sort_values('Duree_Timedelta', ascending=(sort_order == "Croissant"))
+                    else:  # Destination
+                        df = df.sort_values('destination', ascending=(sort_order == "Croissant"))
+                
+                st.markdown(
+                    f'<div style="text-align: center; padding: 2rem;"><h2 style="color: #1d1d1f; font-size: 32px;">✨ {len(df)} trajet{"s" if len(df) > 1 else ""} trouvé{"s" if len(df) > 1 else ""} !</h2></div>',
+                    unsafe_allow_html=True
+                )
+                
+                # Création d'onglets pour différentes vues
+                tab2, tab1, tab3 = st.tabs(["📈 Résumé par destination", "📊 Vue détaillée", "📈 Statistiques"])
+                
+                with tab2:
+                    # Résumé par destination
+                    st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Résumé par destination</h3>', unsafe_allow_html=True)
+                    if search_mode == SearchMode.ROUND_TRIP:
+                        destinations = df['Aller_Destination'].unique()
+                        for dest in sorted(destinations):
+                            dest_trips = df[df['Aller_Destination'] == dest]
+                            with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
+                                for _, trip in dest_trips.iterrows():
+                                    st.markdown(
+                                        f"""<div class="trip-card">
+                                            <p><strong>Aller :</strong> {trip['Aller_Heure']} → {trip['Aller_Arrivee']} ({trip['Duree_Aller']})</p>
+                                            <p><strong>Retour :</strong> {trip['Retour_Heure']} → {trip['Retour_Arrivee']} ({trip['Duree_Retour']})</p>
+                                        </div>""",
+                                        unsafe_allow_html=True
+                                    )
+                    else:
+                        destinations = df['destination'].unique()
+                        for dest in sorted(destinations):
+                            dest_trips = df[df['destination'] == dest]
+                            with st.expander(f"🎯 {dest} ({len(dest_trips)} trajets)"):
+                                for _, trip in dest_trips.iterrows():
+                                    st.markdown(
+                                        f"""<div class="trip-card">
+                                            <p><strong>{trip['heure_depart']} → {trip['heure_arrivee']}</strong> ({trip['duree']})</p>
+                                            <p class="small-text">Date : {trip['date']}</p>
+                                        </div>""",
+                                        unsafe_allow_html=True
+                                    )
+                
+                with tab1:
+                    # Vue détaillée
+                    if search_mode == SearchMode.ROUND_TRIP:
+                        st.dataframe(
+                            df[['Aller_Destination', 'Aller_Heure', 'Aller_Arrivee', 'Duree_Aller',
+                                'Retour_Heure', 'Retour_Arrivee', 'Duree_Retour']],
+                            hide_index=True,
+                            column_config={
+                                'Aller_Destination': 'Destination',
+                                'Aller_Heure': 'Départ Aller',
+                                'Aller_Arrivee': 'Arrivée Aller',
+                                'Duree_Aller': 'Durée Aller',
+                                'Retour_Heure': 'Départ Retour',
+                                'Retour_Arrivee': 'Arrivée Retour',
+                                'Duree_Retour': 'Durée Retour'
+                            }
+                        )
+                    else:
+                        st.dataframe(
+                            df,
+                            hide_index=True,
+                            column_config={
+                                'origine': 'Départ',
+                                'destination': 'Arrivée',
+                                'date': 'Date',
+                                'heure_depart': 'Heure départ',
+                                'heure_arrivee': 'Heure arrivée',
+                                'duree': 'Durée'
+                            }
+                        )
+                
+                with tab3:
+                    st.markdown('<h3 style="color: #1d1d1f; font-size: 24px; margin-bottom: 1.5rem;">Statistiques des trajets</h3>', unsafe_allow_html=True)
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if search_mode == SearchMode.ROUND_TRIP:
+                            avg_duration_aller = calculate_average_duration(df['Duree_Aller'])
+                            avg_duration_retour = calculate_average_duration(df['Duree_Retour'])
+                            st.metric("Durée moyenne aller", avg_duration_aller)
+                            st.metric("Durée moyenne retour", avg_duration_retour)
+                        else:
+                            avg_duration = calculate_average_duration(df['duree'])
+                            st.metric("Durée moyenne", avg_duration)
+
+                    with col2:
+                        if search_mode == SearchMode.ROUND_TRIP:
+                            n_destinations = len(df['Aller_Destination'].unique()) if not df.empty else 0
+                        else:
+                            n_destinations = len(df['destination'].unique()) if not df.empty else 0
+                        st.metric("Nombre de destinations", n_destinations)
+                        
+                        earliest_departure = df['Aller_Heure'].min() if search_mode == SearchMode.ROUND_TRIP else df['heure_depart'].min() if not df.empty else "N/A"
+                        latest_departure = df['Aller_Heure'].max() if search_mode == SearchMode.ROUND_TRIP else df['heure_depart'].max() if not df.empty else "N/A"
+                        st.metric("Premier départ", earliest_departure)
+                        st.metric("Dernier départ", latest_departure)
+
+                    with col3:
+                        if search_mode == SearchMode.ROUND_TRIP:
+                            trips_per_dest = df.groupby('Aller_Destination').size()
+                        else:
+                            trips_per_dest = df.groupby('destination').size() if not df.empty else pd.Series()
+                        
+                        if not trips_per_dest.empty:
+                            most_frequent_dest = trips_per_dest.idxmax()
+                            n_trips_most_frequent = trips_per_dest.max()
+                            st.metric("Destination la plus desservie", f"{most_frequent_dest} ({n_trips_most_frequent} trajets)")
+
+                        # Graphique des trajets par heure si pertinent
+                        if not df.empty:
+                            st.markdown("### 📈 Répartition des trajets par heure")
+                            if search_mode == SearchMode.ROUND_TRIP:
+                                hour_dist = pd.to_datetime(df['Aller_Heure']).dt.hour.value_counts().sort_index()
+                            else:
+                                hour_dist = pd.to_datetime(df['heure_depart']).dt.hour.value_counts().sort_index()
+                            st.bar_chart(hour_dist)
+            else:
+                # Trouver la date la plus éloignée disponible dans l'API
+                future_date = MAX_DATE
+                st.markdown(
+                    f'''<div class="info-box" style="text-align: center; padding: 2rem;">
+                        <h3 style="color: #1d1d1f;">Aucun trajet trouvé pour ces critères</h3>
+                        <p class="small-text">Les données sont disponibles jusqu'au {future_date.strftime("%d/%m/%Y")}</p>
+                    </div>''',
+                    unsafe_allow_html=True
+                )
 
     # Footer avec des informations supplémentaires
     st.markdown("---")
