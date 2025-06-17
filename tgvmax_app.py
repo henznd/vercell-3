@@ -306,6 +306,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 @handle_error
+@handle_error
 def find_trips(mode: SearchMode,
                depart_date: datetime.date,
                return_date: datetime.date = None,
@@ -357,6 +358,7 @@ def find_trips(mode: SearchMode,
                         )
             return pd.DataFrame()
         return df
+// ... existing code ...
     
     elif mode == SearchMode.SINGLE:
         with st.spinner('Recherche des trains...'):
