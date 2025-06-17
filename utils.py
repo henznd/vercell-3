@@ -30,7 +30,7 @@ def get_tgvmax_trains(date: str, origin: str = None, destination: str = None) ->
         data = response.json()
         return data.get('results', [])
     except requests.exceptions.RequestException as e:
-        st.error(f"Erreur lors de la requête API: {str(e)}")
+        # Erreur API ignorée pour l'UI, log possible : # print(f"Erreur API: {str(e)}")
         return []
 
 def calculate_duration(departure: str, arrival: str) -> str:
@@ -95,6 +95,6 @@ def handle_error(func):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            st.error(f"Une erreur est survenue : {str(e)}")
+            # Erreur ignorée pour l'UI, log possible : # print(f"Erreur: {str(e)}")
             return pd.DataFrame()
     return wrapper 
