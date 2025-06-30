@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Types pour les trajets
 interface Train {
@@ -10,6 +10,18 @@ interface Train {
   heure_depart: string;
   heure_arrivee: string;
   duree: string;
+}
+
+interface GroupedDestinationResult {
+  destination: string;
+  trains: Train[];
+  count: number;
+}
+
+interface GroupedDateResult {
+  date: string;
+  trains: Train[];
+  count: number;
 }
 
 interface RoundTripResult {
@@ -44,39 +56,124 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState('Croissant');
   
   // États pour les résultats
-  const [results, setResults] = useState<Train[] | RoundTripResult[]>([]);
+  const [results, setResults] = useState<Train[] | GroupedDestinationResult[] | GroupedDateResult[] | RoundTripResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'overview' | 'details'>('overview');
+
+  // Log des résultats pour le débogage
+  useEffect(() => {
+    console.log('Résultats mis à jour:', results, 'longueur:', results.length);
+  }, [results]);
 
   const handleSearch = async () => {
     setLoading(true);
     setResults([]);
     setError(null);
+    setSelectedDestination(null);
+    setViewMode('overview');
     
     try {
       let url = '';
       
       if (searchMode === 'SINGLE') {
-        url = `http://127.0.0.1:8000/api/trains/single?date=${departDate}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
+        url = `http://localhost:8000/api/trains/single?date=${departDate}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
       } else if (searchMode === 'DATE_RANGE') {
-        url = `http://127.0.0.1:8000/api/trains/range?start_date=${departDate}&days=${dateRangeDays}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
+        url = `http://localhost:8000/api/trains/range?start_date=${departDate}&days=${dateRangeDays}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
       } else if (searchMode === 'ROUND_TRIP') {
-        url = `http://127.0.0.1:8000/api/trains/round-trip?depart_date=${departDate}&return_date=${returnDate}&origin=${origin}`;
+        url = `http://localhost:8000/api/trains/round-trip?depart_date=${departDate}&return_date=${returnDate}&origin=${origin}`;
       }
       
+      console.log('URL de recherche:', url);
+      
       const response = await fetch(url);
+      console.log('Réponse reçue:', response.status, response.statusText);
+      
       if (!response.ok) {
         throw new Error('La recherche a échoué. Veuillez réessayer.');
       }
       
       const data = await response.json();
-      setResults(data);
+      console.log('Données reçues:', data);
+      console.log('Type de données:', typeof data);
+      console.log('Longueur des données:', Array.isArray(data) ? data.length : 'Non un tableau');
+      
+      // Pour le mode DATE_RANGE, regrouper les trains par date
+      if (searchMode === 'DATE_RANGE' && Array.isArray(data)) {
+        const groupedByDate: { [key: string]: Train[] } = {};
+        
+        // Grouper les trains par date
+        data.forEach((train: Train) => {
+          if (!groupedByDate[train.date]) {
+            groupedByDate[train.date] = [];
+          }
+          groupedByDate[train.date].push(train);
+        });
+        
+        // Convertir en tableau et trier par date
+        const groupedResults: GroupedDateResult[] = Object.keys(groupedByDate)
+          .sort((a, b) => {
+            // Trier les dates chronologiquement
+            const dateA = new Date(a.split('/').reverse().join('-'));
+            const dateB = new Date(b.split('/').reverse().join('-'));
+            return dateA.getTime() - dateB.getTime();
+          })
+          .map(date => ({
+            date,
+            trains: groupedByDate[date].sort((a, b) => {
+              // Trier les trains par heure de départ
+              return a.heure_depart.localeCompare(b.heure_depart);
+            }),
+            count: groupedByDate[date].length
+          }));
+        
+        setResults(groupedResults);
+      } else {
+        setResults(data);
+      }
       
     } catch (err) {
+      console.error('Erreur lors de la recherche:', err);
       setError(err instanceof Error ? err.message : 'Une erreur inconnue est survenue.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDestinationClick = (destination: string) => {
+    setSelectedDestination(destination);
+    setViewMode('details');
+  };
+
+  const handleBackToOverview = () => {
+    setSelectedDestination(null);
+    setViewMode('overview');
+  };
+
+  const getSelectedDestinationData = () => {
+    if (!Array.isArray(results) || !selectedDestination) return null;
+    
+    // Pour les résultats groupés par date (mode DATE_RANGE)
+    if (results.length > 0 && 'date' in results[0] && 'trains' in results[0] && searchMode === 'DATE_RANGE') {
+      return results.find((item: any) => item.date === selectedDestination);
+    }
+    
+    // Pour les résultats groupés par destination
+    if (results.length > 0 && 'destination' in results[0] && 'trains' in results[0]) {
+      return results.find((item: any) => item.destination === selectedDestination);
+    }
+    
+    // Pour les résultats simples (quand une destination spécifique est demandée)
+    if (results.length > 0 && 'origine' in results[0]) {
+      return {
+        destination: selectedDestination,
+        trains: results as Train[],
+        count: results.length
+      };
+    }
+    
+    return null;
   };
 
   return (
@@ -127,15 +224,44 @@ export default function Home() {
                     placeholder="Paris"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={departDate}
-                    onChange={(e) => setDepartDate(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                  />
-                </div>
+                
+                {/* Champ dynamique selon le mode de recherche */}
+                {searchMode === 'SINGLE' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={departDate}
+                      onChange={(e) => setDepartDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    />
+                  </div>
+                )}
+                
+                {searchMode === 'ROUND_TRIP' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date aller</label>
+                    <input
+                      type="date"
+                      value={departDate}
+                      onChange={(e) => setDepartDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    />
+                  </div>
+                )}
+                
+                {searchMode === 'DATE_RANGE' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date début</label>
+                    <input
+                      type="date"
+                      value={departDate}
+                      onChange={(e) => setDepartDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    />
+                  </div>
+                )}
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
                   <select
@@ -149,6 +275,53 @@ export default function Home() {
                   </select>
                 </div>
               </div>
+              
+              {/* Ligne supplémentaire pour les champs spécifiques */}
+              {(searchMode === 'ROUND_TRIP' || searchMode === 'DATE_RANGE') && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {searchMode === 'ROUND_TRIP' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date retour</label>
+                      <input
+                        type="date"
+                        value={returnDate}
+                        onChange={(e) => setReturnDate(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                      />
+                    </div>
+                  )}
+                  
+                  {searchMode === 'DATE_RANGE' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de jours</label>
+                      <input
+                        type="number"
+                        value={dateRangeDays}
+                        onChange={(e) => setDateRangeDays(parseInt(e.target.value))}
+                        min="1"
+                        max="30"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="7"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Champ destination pour tous les modes */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Destination {searchMode === 'SINGLE' ? '(optionnel)' : ''}
+                </label>
+                <input
+                  type="text"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  placeholder={searchMode === 'SINGLE' ? 'Laissez vide pour toutes les destinations' : 'Lyon'}
+                />
+              </div>
+              
               <button
                 onClick={handleSearch}
                 disabled={loading}
@@ -393,119 +566,272 @@ export default function Home() {
       {results.length > 0 && (
         <div className="px-4 py-8 sm:px-6 lg:px-8 bg-gray-50">
           <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                ✨ {results.length} résultat{results.length > 1 ? 's' : ''} trouvé{results.length > 1 ? 's' : ''} !
-              </h2>
-              <p className="text-gray-600">Voici vos trajets disponibles</p>
-            </div>
+            
+            {/* Overview Mode - Liste des destinations */}
+            {viewMode === 'overview' && (
+              <>
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                    {searchMode === 'DATE_RANGE' ? '📅 Trajets par date' : '🎯 Destinations disponibles'}
+                  </h2>
+                  <p className="text-gray-600">
+                    {searchMode === 'DATE_RANGE' 
+                      ? 'Trajets groupés par date, triés chronologiquement' 
+                      : 'Cliquez sur une destination pour voir les trajets détaillés'
+                    }
+                  </p>
+                </div>
 
-            {/* Results Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array.isArray(results) && results.length > 0 && (
-                results.map((item, index) => {
-                  // Vérifier si c'est un trajet simple
-                  if ('origine' in item && 'destination' in item && 'date' in item) {
-                    const train = item as Train;
-                    return (
-                      <div key={index} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                        <div className="p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                <span className="text-blue-600 text-sm">🚄</span>
-                              </div>
-                              <span className="text-sm text-gray-500">{train.date}</span>
-                            </div>
-                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">TGV Max</span>
-                          </div>
-                          
-                          <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Array.isArray(results) && results.map((item, index) => {
+                    // Pour les résultats groupés par date (mode DATE_RANGE)
+                    if ('date' in item && 'trains' in item && 'count' in item && searchMode === 'DATE_RANGE') {
+                      const groupedDateResult = item as GroupedDateResult;
+                      return (
+                        <div 
+                          key={index} 
+                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
+                          onClick={() => handleDestinationClick(groupedDateResult.date)}
+                        >
+                          <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-6">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="font-semibold text-gray-900">{train.origine}</p>
-                                <p className="text-sm text-gray-500">Départ</p>
-                              </div>
-                              <div className="text-center">
-                                <div className="w-12 h-0.5 bg-gray-300 relative">
-                                  <div className="absolute -top-1 left-0 w-2 h-2 bg-blue-500 rounded-full"></div>
-                                  <div className="absolute -top-1 right-0 w-2 h-2 bg-blue-500 rounded-full"></div>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">{train.duree}</p>
+                                <h3 className="text-xl font-bold">{groupedDateResult.date}</h3>
+                                <p className="text-orange-100">{groupedDateResult.count} trajet{groupedDateResult.count > 1 ? 's' : ''} disponible{groupedDateResult.count > 1 ? 's' : ''}</p>
                               </div>
                               <div className="text-right">
-                                <p className="font-semibold text-gray-900">{train.destination}</p>
-                                <p className="text-sm text-gray-500">Arrivée</p>
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                                  <span className="text-xl">📅</span>
+                                </div>
                               </div>
                             </div>
-                            
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                              <div className="text-center">
-                                <p className="text-lg font-bold text-blue-600">{train.heure_depart}</p>
-                                <p className="text-xs text-gray-500">Départ</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-lg font-bold text-green-600">{train.heure_arrivee}</p>
-                                <p className="text-xs text-gray-500">Arrivée</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  // Vérifier si c'est un résultat aller-retour
-                  else if ('destination' in item && 'aller' in item && 'retour' in item) {
-                    const roundTrip = item as RoundTripResult;
-                    return (
-                      <div key={index} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                        <div className="p-6">
-                          <div className="text-center mb-4">
-                            <h3 className="text-xl font-bold text-gray-800 mb-1">{roundTrip.destination}</h3>
-                            <p className="text-sm text-gray-500">Aller-retour disponible</p>
                           </div>
                           
-                          <div className="space-y-4">
-                            <div className="bg-blue-50 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-blue-800">🚄 Aller</h4>
-                                <span className="text-sm text-blue-600">{roundTrip.aller.length} trajet(s)</span>
-                              </div>
-                              {roundTrip.aller.slice(0, 2).map((train, idx) => (
-                                <div key={idx} className="text-sm text-gray-700 mb-1 flex justify-between">
-                                  <span>{train.heure_depart} → {train.heure_arrivee}</span>
+                          <div className="p-4">
+                            <div className="space-y-2">
+                              {/* Aperçu des premiers trajets */}
+                              {groupedDateResult.trains.slice(0, 2).map((train, trainIndex) => (
+                                <div key={trainIndex} className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600">{train.heure_depart}</span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className="text-gray-600">{train.heure_arrivee}</span>
                                   <span className="text-gray-500">({train.duree})</span>
                                 </div>
                               ))}
-                              {roundTrip.aller.length > 2 && (
-                                <div className="text-xs text-blue-500">+{roundTrip.aller.length - 2} autres</div>
+                              {groupedDateResult.trains.length > 2 && (
+                                <div className="text-xs text-orange-500 text-center pt-2">
+                                  +{groupedDateResult.trains.length - 2} autres trajets
+                                </div>
                               )}
                             </div>
-                            
-                            <div className="bg-green-50 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-green-800">🔄 Retour</h4>
-                                <span className="text-sm text-green-600">{roundTrip.retour.length} trajet(s)</span>
-                              </div>
-                              {roundTrip.retour.slice(0, 2).map((train, idx) => (
-                                <div key={idx} className="text-sm text-gray-700 mb-1 flex justify-between">
-                                  <span>{train.heure_depart} → {train.heure_arrivee}</span>
-                                  <span className="text-gray-500">({train.duree})</span>
-                                </div>
-                              ))}
-                              {roundTrip.retour.length > 2 && (
-                                <div className="text-xs text-green-500">+{roundTrip.retour.length - 2} autres</div>
-                              )}
+                            <div className="mt-4 text-center">
+                              <span className="text-sm text-orange-600 font-medium">Cliquer pour voir tous les trajets</span>
                             </div>
                           </div>
                         </div>
+                      );
+                    }
+                    
+                    // Pour les résultats groupés par destination
+                    if ('destination' in item && 'trains' in item && 'count' in item) {
+                      const groupedResult = item as GroupedDestinationResult;
+                      return (
+                        <div 
+                          key={index} 
+                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
+                          onClick={() => handleDestinationClick(groupedResult.destination)}
+                        >
+                          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-xl font-bold">{groupedResult.destination}</h3>
+                                <p className="text-blue-100">{groupedResult.count} trajet{groupedResult.count > 1 ? 's' : ''} disponible{groupedResult.count > 1 ? 's' : ''}</p>
+                              </div>
+                              <div className="text-right">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                                  <span className="text-xl">🚄</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="p-4">
+                            <div className="space-y-2">
+                              {/* Aperçu des premiers trajets */}
+                              {groupedResult.trains.slice(0, 2).map((train, trainIndex) => (
+                                <div key={trainIndex} className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600">{train.heure_depart}</span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className="text-gray-600">{train.heure_arrivee}</span>
+                                  <span className="text-gray-500">({train.duree})</span>
+                                </div>
+                              ))}
+                              {groupedResult.trains.length > 2 && (
+                                <div className="text-xs text-blue-500 text-center pt-2">
+                                  +{groupedResult.trains.length - 2} autres trajets
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-4 text-center">
+                              <span className="text-sm text-blue-600 font-medium">Cliquer pour voir tous les trajets</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Pour les résultats simples (quand une destination spécifique est demandée)
+                    if ('origine' in item && 'destination' in item && 'date' in item) {
+                      const train = item as Train;
+                      return (
+                        <div 
+                          key={index} 
+                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
+                          onClick={() => handleDestinationClick(train.destination)}
+                        >
+                          <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-xl font-bold">{train.destination}</h3>
+                                <p className="text-green-100">1 trajet disponible</p>
+                              </div>
+                              <div className="text-right">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                                  <span className="text-xl">🚄</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="p-4">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">{train.heure_depart}</span>
+                              <span className="text-gray-400">→</span>
+                              <span className="text-gray-600">{train.heure_arrivee}</span>
+                              <span className="text-gray-500">({train.duree})</span>
+                            </div>
+                            <div className="mt-4 text-center">
+                              <span className="text-sm text-green-600 font-medium">Cliquer pour voir le trajet</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Details Mode - Trajets d'une destination spécifique */}
+            {viewMode === 'details' && selectedDestination && (
+              <>
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <button
+                      onClick={handleBackToOverview}
+                      className="flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-2"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      {searchMode === 'DATE_RANGE' ? 'Retour aux dates' : 'Retour aux destinations'}
+                    </button>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                      {searchMode === 'DATE_RANGE' 
+                        ? `📅 Trajets du ${selectedDestination}` 
+                        : `🚄 Trajets vers ${selectedDestination}`
+                      }
+                    </h2>
+                    <p className="text-gray-600">
+                      {searchMode === 'DATE_RANGE' 
+                        ? 'Tous les trajets disponibles pour cette date, triés par heure de départ' 
+                        : 'Tous les trajets disponibles, triés par ordre chronologique'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  {(() => {
+                    const destinationData = getSelectedDestinationData();
+                    if (!destinationData) return <div className="p-6 text-center text-gray-500">Aucune donnée disponible</div>;
+                    
+                    // Vérifier si c'est un GroupedDestinationResult, GroupedDateResult ou un Train simple
+                    let trains: Train[];
+                    if ('trains' in destinationData) {
+                      // C'est un GroupedDestinationResult ou GroupedDateResult
+                      trains = destinationData.trains;
+                    } else {
+                      // C'est un Train simple, le convertir en tableau
+                      trains = [destinationData as Train];
+                    }
+                    
+                    // Trier les trains par heure de départ (pour le mode DATE_RANGE, ils sont déjà triés par date)
+                    const sortedTrains = [...trains].sort((a, b) => {
+                      if (searchMode === 'DATE_RANGE') {
+                        // Pour le mode DATE_RANGE, trier seulement par heure de départ
+                        return a.heure_depart.localeCompare(b.heure_depart);
+                      } else {
+                        // Pour les autres modes, trier par date et heure de départ
+                        const dateA = new Date(`${a.date.split('/').reverse().join('-')} ${a.heure_depart}`);
+                        const dateB = new Date(`${b.date.split('/').reverse().join('-')} ${b.heure_depart}`);
+                        return dateA.getTime() - dateB.getTime();
+                      }
+                    });
+
+                    return (
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {sortedTrains.map((train, trainIndex) => (
+                            <div key={trainIndex} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                              {searchMode !== 'DATE_RANGE' && (
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-sm text-gray-500">{train.date}</span>
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">TGV Max</span>
+                                </div>
+                              )}
+                              
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-semibold text-gray-900">{train.origine}</p>
+                                    <p className="text-sm text-gray-500">Départ</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <div className="w-8 h-0.5 bg-gray-300 relative">
+                                      <div className="absolute -top-1 left-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                      <div className="absolute -top-1 right-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">{train.duree}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-semibold text-gray-900">{train.destination}</p>
+                                    <p className="text-sm text-gray-500">Arrivée</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                                  <div className="text-center">
+                                    <p className="text-lg font-bold text-blue-600">{train.heure_depart}</p>
+                                    <p className="text-xs text-gray-500">Départ</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-lg font-bold text-green-600">{train.heure_arrivee}</p>
+                                    <p className="text-xs text-gray-500">Arrivée</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
-                  }
-                  return null;
-                })
-              )}
-            </div>
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
