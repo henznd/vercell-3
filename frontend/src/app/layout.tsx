@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TGV Max Vercel',
-  description: 'Application de recherche de trains TGV Max',
+  title: 'TGV Max Finder',
+  description: 'Trouvez vos trajets TGV Max en quelques clics',
 }
 
 export default function RootLayout({
