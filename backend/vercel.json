@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "main.py"
+    }
+  ],
+  "env": {
+    "SNCF_API_URL": "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/tgvmax/records",
+    "API_LIMIT": "100"
+  }
+} 
