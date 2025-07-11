@@ -75,6 +75,110 @@ function TrainResultsTable({ trains, title }: { trains: Train[], title?: string 
   );
 }
 
+// Utilitaire pour formater la date et l'heure
+function formatDate(dateStr: string) {
+  if (!dateStr) return '-';
+  // Gère les formats ISO ou YYYY-MM-DDTHH:mm:ss
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('fr-FR');
+}
+function formatHour(dateStr: string) {
+  if (!dateStr) return '-';
+  // Si déjà au format HH:MM, retourne tel quel
+  if (/^\d{2}:\d{2}$/.test(dateStr)) return dateStr;
+  // Sinon, extrait l'heure d'un ISO ou YYYY-MM-DDTHH:mm:ss
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Accordéon moderne pour les destinations
+function DestinationsAccordion({ trains }: { trains: Train[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  if (!trains || trains.length === 0) return null;
+  // Grouper par destination
+  const grouped = trains.reduce((acc, train) => {
+    if (!acc[train.destination]) acc[train.destination] = [];
+    acc[train.destination].push(train);
+    return acc;
+  }, {} as Record<string, Train[]>);
+  const destinations = Object.entries(grouped);
+  return (
+    <div className="my-8 bg-white rounded-2xl shadow divide-y divide-gray-200 max-w-2xl mx-auto">
+      {destinations.map(([destination, trains]) => (
+        <div key={destination}>
+          <button
+            onClick={() => setOpen(open === destination ? null : destination)}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-blue-50 transition-all duration-200 focus:outline-none"
+          >
+            <div className="flex items-center space-x-3">
+              <span className="text-2xl">🚄</span>
+              <span className="font-semibold text-gray-800 text-lg">{destination}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-blue-600 bg-blue-100 px-3 py-1 rounded-full font-medium">
+                {trains.length} trajet{trains.length > 1 ? 's' : ''}
+              </span>
+              <svg className={`w-5 h-5 text-blue-400 transform transition-transform ${open === destination ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+          {open === destination && (
+            <div className="bg-blue-50 px-6 pb-4 pt-2 animate-fade-in">
+              {trains.sort((a, b) => a.heure_depart.localeCompare(b.heure_depart)).map((train, idx) => (
+                <div key={idx} className="py-2 flex items-center justify-between border-b border-blue-100 last:border-0">
+                  <div>
+                    <span className="font-semibold text-blue-700">{formatHour(train.heure_depart)} → {formatHour(train.heure_arrivee)}</span>
+                    <span className="ml-2 text-gray-500 text-xs">Durée : {train.duree || '-'} | n° {train.train_no || '-'}</span>
+                  </div>
+                  <div className="text-right text-gray-600 text-xs">
+                    <div>{formatDate(train.date)}</div>
+                    <div>Départ : <span className="font-medium">{train.origine}</span></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Nouveau composant pour afficher les trajets détaillés d'une destination
+function DestinationDetails({ destination, trains, onBack }: { destination: string, trains: Train[], onBack: () => void }) {
+  return (
+    <div className="my-8 max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+      <button onClick={onBack} className="mb-4 text-blue-600 hover:underline flex items-center">
+        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Retour aux destinations
+      </button>
+      <div className="flex items-center mb-6">
+        <span className="text-3xl mr-3">🚄</span>
+        <h2 className="text-2xl font-bold text-gray-800">{destination}</h2>
+      </div>
+      <div className="divide-y divide-gray-200">
+        {trains.sort((a, b) => a.heure_depart.localeCompare(b.heure_depart)).map((train, idx) => (
+          <div key={idx} className="py-4 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-blue-700 text-lg">{formatHour(train.heure_depart)} → {formatHour(train.heure_arrivee)}</div>
+              <div className="text-gray-500 text-sm">Durée : {train.duree || '-'} | Train n° {train.train_no || '-'}</div>
+            </div>
+            <div className="text-right text-gray-600 text-sm">
+              <div>{formatDate(train.date)}</div>
+              <div className="mt-1">Départ : <span className="font-medium">{train.origine}</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   // États pour les modes de recherche
   const [searchMode, setSearchMode] = useState<SearchMode>('SINGLE');
@@ -617,8 +721,15 @@ export default function Home() {
 
       {/* Results Section */}
       {/* Affichage des résultats sous forme de tableau */}
-      {!loading && results && Array.isArray(results) && results.length > 0 && searchMode !== 'DATE_RANGE' && (
-        <TrainResultsTable trains={results as Train[]} />
+      {!loading && results && Array.isArray(results) && results.length > 0 && (
+        <DestinationsAccordion trains={results as Train[]} />
+      )}
+      {!loading && results && Array.isArray(results) && results.length > 0 && selectedDestination && (
+        <DestinationDetails
+          destination={selectedDestination}
+          trains={(results as Train[]).filter(t => t.destination === selectedDestination)}
+          onBack={() => setSelectedDestination(null)}
+        />
       )}
 
       {/* Mode aller-retour */}
@@ -674,7 +785,7 @@ export default function Home() {
       <footer className="bg-gray-800 text-white py-8 mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <p className="text-gray-400">Développé par Baptiste Cuchet 🚀</p>
+            <p className="text-gray-400">Développé par Baptiste Cuchet ��</p>
             <p className="text-sm text-gray-500 mt-2">Trouvez vos trajets TGV Max en quelques clics</p>
           </div>
         </div>
