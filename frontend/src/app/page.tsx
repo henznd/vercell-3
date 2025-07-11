@@ -103,14 +103,24 @@ export default function Home() {
       const data = await response.json();
       console.log('Données reçues:', data);
       console.log('Type de données:', typeof data);
-      console.log('Longueur des données:', Array.isArray(data) ? data.length : 'Non un tableau');
+      
+      // Extraire les trains de la réponse du backend
+      let trains = [];
+      if (data && data.trips) {
+        trains = data.trips;
+      } else if (Array.isArray(data)) {
+        trains = data;
+      }
+      
+      console.log('Trains extraits:', trains);
+      console.log('Longueur des trains:', trains.length);
       
       // Pour le mode DATE_RANGE, regrouper les trains par date
-      if (searchMode === 'DATE_RANGE' && Array.isArray(data)) {
+      if (searchMode === 'DATE_RANGE' && Array.isArray(trains)) {
         const groupedByDate: { [key: string]: Train[] } = {};
         
         // Grouper les trains par date
-        data.forEach((train: Train) => {
+        trains.forEach((train: Train) => {
           if (!groupedByDate[train.date]) {
             groupedByDate[train.date] = [];
           }
@@ -136,7 +146,7 @@ export default function Home() {
         
         setResults(groupedResults);
       } else {
-        setResults(data);
+        setResults(trains);
       }
       
     } catch (err) {
