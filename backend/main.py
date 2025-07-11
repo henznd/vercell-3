@@ -1,10 +1,20 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, time, timedelta
 from typing import Optional
 from api_utils import get_tgvmax_trains, filter_trains_by_time, format_single_trips
 from config import MAX_RANGE_DAYS
 
 app = FastAPI()
+
+# Configuration CORS pour permettre les requêtes depuis le frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En production, spécifiez vos domaines exacts
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
