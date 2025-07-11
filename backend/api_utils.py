@@ -7,7 +7,8 @@ from config import SNCF_API_URL, API_LIMIT
 def get_tgvmax_trains(date: datetime.date) -> pd.DataFrame:
     """Récupère les trains TGV Max pour une date donnée depuis l'API SNCF."""
     params = {
-        "where": f"date = '{date.strftime('%Y-%m-%d')}'",
+        # Utilisation correcte du filtre Opendatasoft pour un champ date
+        "refine.date": date.strftime('%Y-%m-%d'),
         "limit": API_LIMIT
     }
     response = requests.get(SNCF_API_URL, params=params)
