@@ -7,8 +7,8 @@ import requests
 import os
 from mangum import Mangum
 
-from api_utils import get_tgvmax_trains, filter_trains_by_time, format_single_trips, calculate_duration, handle_error
-from config import (
+from .api_utils import get_tgvmax_trains, filter_trains_by_time, format_single_trips, calculate_duration, handle_error
+from .config import (
     MIN_DATE, MAX_DATE, DEFAULT_START_TIME, DEFAULT_END_TIME,
     DEFAULT_ORIGIN, MAX_RANGE_DAYS, DEFAULT_RANGE_DAYS
 )

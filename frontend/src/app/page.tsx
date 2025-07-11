@@ -32,6 +32,8 @@ interface RoundTripResult {
 
 type SearchMode = 'SINGLE' | 'ROUND_TRIP' | 'DATE_RANGE';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function Home() {
   // États pour les modes de recherche
   const [searchMode, setSearchMode] = useState<SearchMode>('SINGLE');
@@ -78,11 +80,11 @@ export default function Home() {
       let url = '';
       
       if (searchMode === 'SINGLE') {
-        url = `http://localhost:8000/api/trains/single?date=${departDate}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
+        url = `${API_URL}/api/trains/single?date=${departDate}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
       } else if (searchMode === 'DATE_RANGE') {
-        url = `http://localhost:8000/api/trains/range?start_date=${departDate}&days=${dateRangeDays}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
+        url = `${API_URL}/api/trains/range?start_date=${departDate}&days=${dateRangeDays}&origin=${origin}${destination ? `&destination=${destination}` : ''}`;
       } else if (searchMode === 'ROUND_TRIP') {
-        url = `http://localhost:8000/api/trains/round-trip?depart_date=${departDate}&return_date=${returnDate}&origin=${origin}`;
+        url = `${API_URL}/api/trains/round-trip?depart_date=${departDate}&return_date=${returnDate}&origin=${origin}`;
       }
       
       console.log('URL de recherche:', url);
