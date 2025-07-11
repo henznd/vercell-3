@@ -34,6 +34,10 @@ type SearchMode = 'SINGLE' | 'ROUND_TRIP' | 'DATE_RANGE';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Debug: Afficher l'URL utilisée
+console.log('API_URL utilisée:', API_URL);
+console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+
 export default function Home() {
   // États pour les modes de recherche
   const [searchMode, setSearchMode] = useState<SearchMode>('SINGLE');
