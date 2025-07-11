@@ -10,6 +10,7 @@ interface Train {
   heure_depart: string;
   heure_arrivee: string;
   duree: string;
+  train_no?: string; // Added for the new table
 }
 
 interface GroupedDestinationResult {
@@ -37,6 +38,42 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 // Debug: Afficher l'URL utilisée
 console.log('API_URL utilisée:', API_URL);
 console.log('NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+
+// Nouveau composant pour afficher les résultats sous forme de tableau
+function TrainResultsTable({ trains, title }: { trains: Train[], title?: string }) {
+  if (!trains || trains.length === 0) return null;
+  return (
+    <div className="overflow-x-auto my-4">
+      {title && <h3 className="font-bold text-lg mb-2">{title}</h3>}
+      <table className="min-w-full border border-gray-200 rounded-lg bg-white shadow">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="px-3 py-2 border">Date</th>
+            <th className="px-3 py-2 border">Départ</th>
+            <th className="px-3 py-2 border">Arrivée</th>
+            <th className="px-3 py-2 border">Heure départ</th>
+            <th className="px-3 py-2 border">Heure arrivée</th>
+            <th className="px-3 py-2 border">Durée</th>
+            <th className="px-3 py-2 border">Train</th>
+          </tr>
+        </thead>
+        <tbody>
+          {trains.map((train, idx) => (
+            <tr key={idx} className="hover:bg-blue-50">
+              <td className="px-3 py-2 border">{train.date}</td>
+              <td className="px-3 py-2 border">{train.origine}</td>
+              <td className="px-3 py-2 border">{train.destination}</td>
+              <td className="px-3 py-2 border">{train.heure_depart}</td>
+              <td className="px-3 py-2 border">{train.heure_arrivee}</td>
+              <td className="px-3 py-2 border">{train.duree || '-'}</td>
+              <td className="px-3 py-2 border">{train.train_no || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function Home() {
   // États pour les modes de recherche
@@ -579,277 +616,26 @@ export default function Home() {
       </div>
 
       {/* Results Section */}
-      {results.length > 0 && (
-        <div className="px-4 py-8 sm:px-6 lg:px-8 bg-gray-50">
-          <div className="max-w-6xl mx-auto">
-            
-            {/* Overview Mode - Liste des destinations */}
-            {viewMode === 'overview' && (
-              <>
-                <div className="text-center mb-8">
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                    {searchMode === 'DATE_RANGE' ? '📅 Trajets par date' : '🎯 Destinations disponibles'}
-                  </h2>
-                  <p className="text-gray-600">
-                    {searchMode === 'DATE_RANGE' 
-                      ? 'Trajets groupés par date, triés chronologiquement' 
-                      : 'Cliquez sur une destination pour voir les trajets détaillés'
-                    }
-                  </p>
-                </div>
+      {/* Affichage des résultats sous forme de tableau */}
+      {!loading && results && Array.isArray(results) && results.length > 0 && searchMode !== 'DATE_RANGE' && (
+        <TrainResultsTable trains={results as Train[]} />
+      )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Array.isArray(results) && results.map((item, index) => {
-                    // Pour les résultats groupés par date (mode DATE_RANGE)
-                    if ('date' in item && 'trains' in item && 'count' in item && searchMode === 'DATE_RANGE') {
-                      const groupedDateResult = item as GroupedDateResult;
-                      return (
-                        <div 
-                          key={index} 
-                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
-                          onClick={() => handleDestinationClick(groupedDateResult.date)}
-                        >
-                          <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="text-xl font-bold">{groupedDateResult.date}</h3>
-                                <p className="text-orange-100">{groupedDateResult.count} trajet{groupedDateResult.count > 1 ? 's' : ''} disponible{groupedDateResult.count > 1 ? 's' : ''}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                                  <span className="text-xl">📅</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="p-4">
-                            <div className="space-y-2">
-                              {/* Aperçu des premiers trajets */}
-                              {groupedDateResult.trains.slice(0, 2).map((train, trainIndex) => (
-                                <div key={trainIndex} className="flex items-center justify-between text-sm">
-                                  <span className="text-gray-600">{train.heure_depart}</span>
-                                  <span className="text-gray-400">→</span>
-                                  <span className="text-gray-600">{train.heure_arrivee}</span>
-                                  <span className="text-gray-500">({train.duree})</span>
-                                </div>
-                              ))}
-                              {groupedDateResult.trains.length > 2 && (
-                                <div className="text-xs text-orange-500 text-center pt-2">
-                                  +{groupedDateResult.trains.length - 2} autres trajets
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-4 text-center">
-                              <span className="text-sm text-orange-600 font-medium">Cliquer pour voir tous les trajets</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    // Pour les résultats groupés par destination
-                    if ('destination' in item && 'trains' in item && 'count' in item) {
-                      const groupedResult = item as GroupedDestinationResult;
-                      return (
-                        <div 
-                          key={index} 
-                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
-                          onClick={() => handleDestinationClick(groupedResult.destination)}
-                        >
-                          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="text-xl font-bold">{groupedResult.destination}</h3>
-                                <p className="text-blue-100">{groupedResult.count} trajet{groupedResult.count > 1 ? 's' : ''} disponible{groupedResult.count > 1 ? 's' : ''}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                                  <span className="text-xl">🚄</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="p-4">
-                            <div className="space-y-2">
-                              {/* Aperçu des premiers trajets */}
-                              {groupedResult.trains.slice(0, 2).map((train, trainIndex) => (
-                                <div key={trainIndex} className="flex items-center justify-between text-sm">
-                                  <span className="text-gray-600">{train.heure_depart}</span>
-                                  <span className="text-gray-400">→</span>
-                                  <span className="text-gray-600">{train.heure_arrivee}</span>
-                                  <span className="text-gray-500">({train.duree})</span>
-                                </div>
-                              ))}
-                              {groupedResult.trains.length > 2 && (
-                                <div className="text-xs text-blue-500 text-center pt-2">
-                                  +{groupedResult.trains.length - 2} autres trajets
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-4 text-center">
-                              <span className="text-sm text-blue-600 font-medium">Cliquer pour voir tous les trajets</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    // Pour les résultats simples (quand une destination spécifique est demandée)
-                    if ('origine' in item && 'destination' in item && 'date' in item) {
-                      const train = item as Train;
-                      return (
-                        <div 
-                          key={index} 
-                          className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden"
-                          onClick={() => handleDestinationClick(train.destination)}
-                        >
-                          <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className="text-xl font-bold">{train.destination}</h3>
-                                <p className="text-green-100">1 trajet disponible</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                                  <span className="text-xl">🚄</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="p-4">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">{train.heure_depart}</span>
-                              <span className="text-gray-400">→</span>
-                              <span className="text-gray-600">{train.heure_arrivee}</span>
-                              <span className="text-gray-500">({train.duree})</span>
-                            </div>
-                            <div className="mt-4 text-center">
-                              <span className="text-sm text-green-600 font-medium">Cliquer pour voir le trajet</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    return null;
-                  })}
-                </div>
-              </>
-            )}
+      {/* Mode aller-retour */}
+      {!loading && results && !Array.isArray(results) && results.trips && (
+        <>
+          <TrainResultsTable trains={results.trips.depart || []} title="Aller" />
+          <TrainResultsTable trains={results.trips.return || []} title="Retour" />
+        </>
+      )}
 
-            {/* Details Mode - Trajets d'une destination spécifique */}
-            {viewMode === 'details' && selectedDestination && (
-              <>
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <button
-                      onClick={handleBackToOverview}
-                      className="flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-2"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      {searchMode === 'DATE_RANGE' ? 'Retour aux dates' : 'Retour aux destinations'}
-                    </button>
-                    <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                      {searchMode === 'DATE_RANGE' 
-                        ? `📅 Trajets du ${selectedDestination}` 
-                        : `🚄 Trajets vers ${selectedDestination}`
-                      }
-                    </h2>
-                    <p className="text-gray-600">
-                      {searchMode === 'DATE_RANGE' 
-                        ? 'Tous les trajets disponibles pour cette date, triés par heure de départ' 
-                        : 'Tous les trajets disponibles, triés par ordre chronologique'
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                  {(() => {
-                    const destinationData = getSelectedDestinationData();
-                    if (!destinationData) return <div className="p-6 text-center text-gray-500">Aucune donnée disponible</div>;
-                    
-                    // Vérifier si c'est un GroupedDestinationResult, GroupedDateResult ou un Train simple
-                    let trains: Train[];
-                    if ('trains' in destinationData) {
-                      // C'est un GroupedDestinationResult ou GroupedDateResult
-                      trains = destinationData.trains;
-                    } else {
-                      // C'est un Train simple, le convertir en tableau
-                      trains = [destinationData as Train];
-                    }
-                    
-                    // Trier les trains par heure de départ (pour le mode DATE_RANGE, ils sont déjà triés par date)
-                    const sortedTrains = [...trains].sort((a, b) => {
-                      if (searchMode === 'DATE_RANGE') {
-                        // Pour le mode DATE_RANGE, trier seulement par heure de départ
-                        return a.heure_depart.localeCompare(b.heure_depart);
-                      } else {
-                        // Pour les autres modes, trier par date et heure de départ
-                        const dateA = new Date(`${a.date.split('/').reverse().join('-')} ${a.heure_depart}`);
-                        const dateB = new Date(`${b.date.split('/').reverse().join('-')} ${b.heure_depart}`);
-                        return dateA.getTime() - dateB.getTime();
-                      }
-                    });
-
-                    return (
-                      <div className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {sortedTrains.map((train, trainIndex) => (
-                            <div key={trainIndex} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
-                              {searchMode !== 'DATE_RANGE' && (
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="text-sm text-gray-500">{train.date}</span>
-                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">TGV Max</span>
-                                </div>
-                              )}
-                              
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-semibold text-gray-900">{train.origine}</p>
-                                    <p className="text-sm text-gray-500">Départ</p>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="w-8 h-0.5 bg-gray-300 relative">
-                                      <div className="absolute -top-1 left-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                                      <div className="absolute -top-1 right-0 w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-1">{train.duree}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="font-semibold text-gray-900">{train.destination}</p>
-                                    <p className="text-sm text-gray-500">Arrivée</p>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                                  <div className="text-center">
-                                    <p className="text-lg font-bold text-blue-600">{train.heure_depart}</p>
-                                    <p className="text-xs text-gray-500">Départ</p>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-lg font-bold text-green-600">{train.heure_arrivee}</p>
-                                    <p className="text-xs text-gray-500">Arrivée</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+      {/* Mode plage de dates (groupé par date) */}
+      {!loading && results && Array.isArray(results) && results.length > 0 && searchMode === 'DATE_RANGE' && (
+        <>
+          {(results as GroupedDateResult[]).sort((a, b) => a.date.localeCompare(b.date)).map((group, idx) => (
+            <TrainResultsTable key={idx} trains={group.trains} title={group.date} />
+          ))}
+        </>
       )}
 
       {/* Error Display */}
