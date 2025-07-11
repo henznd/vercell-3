@@ -13,8 +13,8 @@ def get_tgvmax_trains(date: datetime.date) -> pd.DataFrame:
         "limit": API_LIMIT
     }
     response = requests.get(SNCF_API_URL, params=params)
-    response.raise_for_status()
-    data = response.json()
+        response.raise_for_status()
+        data = response.json()
     records = data.get("results", [])
     return pd.DataFrame(records)
 
