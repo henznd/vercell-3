@@ -732,14 +732,6 @@ export default function Home() {
         />
       )}
 
-      {/* Mode aller-retour */}
-      {!loading && results && !Array.isArray(results) && results.trips && (
-        <>
-          <TrainResultsTable trains={results.trips.depart || []} title="Aller" />
-          <TrainResultsTable trains={results.trips.return || []} title="Retour" />
-        </>
-      )}
-
       {/* Mode plage de dates (groupé par date) */}
       {!loading && results && Array.isArray(results) && results.length > 0 && searchMode === 'DATE_RANGE' && (
         <>
