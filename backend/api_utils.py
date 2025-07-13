@@ -7,15 +7,22 @@ from config import SNCF_API_URL, API_LIMIT
 def get_tgvmax_trains(date: datetime.date) -> pd.DataFrame:
     """Récupère les trains TGV Max pour une date donnée depuis l'API SNCF."""
     params = {
-        # Utilisation correcte du filtre Opendatasoft pour un champ date
-        "refine.date": date.strftime('%Y-%m-%d'),
         "limit": API_LIMIT
     }
     response = requests.get(SNCF_API_URL, params=params)
     response.raise_for_status()
     data = response.json()
     records = data.get("results", [])
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+    
+    # Filtrage côté backend car l'API SNCF ne filtre pas correctement
+    if not df.empty:
+        target_date = date.strftime('%Y-%m-%d')
+        df = df[df['date'] == target_date]
+        print(f"[API_UTILS] Date demandée: {target_date}")
+        print(f"[API_UTILS] Trains filtrés: {len(df)} sur {len(records)} reçus")
+    
+    return df
 
 def filter_trains_by_time(df: pd.DataFrame, start: time, end: time) -> pd.DataFrame:
     """Filtre les trains selon un créneau horaire."""

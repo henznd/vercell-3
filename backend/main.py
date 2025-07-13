@@ -33,6 +33,17 @@ def get_single_trips(
         start_t = datetime.strptime(start_time, "%H:%M").time()
         end_t = datetime.strptime(end_time, "%H:%M").time()
         trains_df = get_tgvmax_trains(depart_date)
+        # Log détaillé pour debug
+        print(f"[API] Date demandée: {date}")
+        print(f"[API] Nombre de trains reçus: {len(trains_df)}")
+        if not trains_df.empty:
+            print(f"[API] Colonnes disponibles: {trains_df.columns.tolist()}")
+            print(f"[API] Dates trouvées: {trains_df['date'].unique().tolist()}")
+            print(f"[API] Premiers trains reçus:")
+            for i, row in trains_df.head(3).iterrows():
+                print(f"  - Train {i}: {row.get('origine', 'N/A')} -> {row.get('destination', 'N/A')} le {row.get('date', 'N/A')} à {row.get('heure_depart', 'N/A')}")
+        else:
+            print("[API] Aucun train reçu")
         if trains_df.empty:
             return {"message": "Aucun trajet trouvé pour cette date", "trips": []}
         if origin:
@@ -100,6 +111,7 @@ def get_date_range_trips(
     start_date: str = Query(..., description="Date de début (YYYY-MM-DD)"),
     days: int = Query(7, description="Nombre de jours à rechercher"),
     origin: str = Query(..., description="Gare de départ"),
+    destination: Optional[str] = Query(None, description="Gare de destination"),
     start_time: str = Query("00:00", description="Heure de début (HH:MM)"),
     end_time: str = Query("23:59", description="Heure de fin (HH:MM)")
 ):
@@ -115,6 +127,8 @@ def get_date_range_trips(
             trains_df = get_tgvmax_trains(current_date)
             if not trains_df.empty:
                 trains_df = trains_df[trains_df['origine'].str.contains(origin.upper(), na=False)]
+                if destination:
+                    trains_df = trains_df[trains_df['destination'].str.contains(destination.upper(), na=False)]
                 trains_df = filter_trains_by_time(trains_df, start_t, end_t)
                 if not trains_df.empty:
                     trips = format_single_trips(trains_df)
